@@ -462,7 +462,15 @@ default_hooks = dict(
 )
 ```
 
+## Training a model in MMSegmentation
 
+```python
+source .venv/bin/activate
+cd mmsegmentation
+
+# Select which GPU to use (e.g., GPU 0)
+CUDA_VISIBLE_DEVICES=0 python tools/train.py configs/underwater/custom_deeplabv3_r50.py
+```
 
 
 
