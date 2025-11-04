@@ -200,6 +200,8 @@ Next open `mmsegmentation/mmseg/datasets/__init__.py` and add the created Class 
 
 ```python
 ...
+from .underwater_turbidity_aau import UnderwaterTurbidityAAU
+...
 __all__ = [
     'BaseSegDataset', 'BioMedical3DRandomCrop', 'BioMedical3DRandomFlip',
     'CityscapesDataset', 'PascalVOCDataset', 'ADE20KDataset',
