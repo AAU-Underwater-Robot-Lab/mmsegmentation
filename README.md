@@ -222,6 +222,181 @@ __all__ = [
     'NYUDataset', 'HSIDrive20Dataset', 'UnderWaterTurbidityAAU'
 ]
 ```
+### Dataloaders in MMSegmentation
+
+In MMSegmentation, **dataloaders** define how images and annotations are loaded, transformed, batched, and fed into the model during training and evaluation.  
+
+They are configured inside the dataset config file — typically under: `mmsegmentation/configs/_base_/datasets/`
+
+Each dataloader includes three main parts:
+- **Dataset definition** (where to find data and what format to use)
+- **Pipeline** (how to preprocess and augment the data)
+- **Sampler + loader settings** (batch size, number of workers, etc.)
+
+---
+
+Example: Underwater Dataset Configuration
+
+```python
+# ============================================================
+# Underwater Dataset Configuration (BaseSegDataset)
+# ============================================================
+# This configuration defines how MMSegmentation loads and processes
+# your underwater dataset for training, validation, and testing.
+#
+# It includes:
+# 1. Dataset metadata (type, root directory)
+# 2. Data pipelines (augmentation & preprocessing)
+# 3. Dataloaders (how data is batched and sampled)
+# 4. Evaluators (metrics for validation/testing)
+# ============================================================
+
+# ------------------------------------------------------------
+# Dataset Type and Root Path
+# ------------------------------------------------------------
+# 'dataset_type' must match the name of your registered dataset class.
+# This links to the dataset defined in mmseg/datasets/underwater_aau.py
+dataset_type = 'UnderWaterAAU'
+
+# Root directory where images and annotations are stored.
+data_root = 'data/underwater_3/'
+
+
+# ------------------------------------------------------------
+# Data Pipelines
+# ------------------------------------------------------------
+# The pipeline defines how data is loaded, augmented, and prepared
+# before being passed into the model. Training and test pipelines
+# differ slightly (e.g., augmentations vs. deterministic resizing).
+
+crop_size = (512, 512)  # Random crop size for training images
+
+# ---------------------------
+# Training Pipeline
+# ---------------------------
+train_pipeline = [
+    # Step 1: Load RGB image
+    dict(type='LoadImageFromFile'),
+
+    # Step 2: Load segmentation mask (grayscale image)
+    dict(type='LoadAnnotations', reduce_zero_label=False),
+
+    # Step 3: Randomly resize image within a given ratio range
+    dict(
+        type='RandomResize',
+        scale=(1920, 1080),       # target scale
+        ratio_range=(0.5, 2.0),  # random scaling factor
+        keep_ratio=True),        # maintain aspect ratio
+
+    # Step 4: Randomly crop a patch from the image
+    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
+
+    # Step 5: Randomly flip the image horizontally
+    dict(type='RandomFlip', prob=0.5),
+
+    # Step 6: Apply random photometric distortions
+    dict(type='PhotoMetricDistortion'),
+
+    # Step 7: Pack results into model input format (tensors)
+    dict(type='PackSegInputs')
+]
+
+# ---------------------------
+# Test / Validation Pipeline
+# ---------------------------
+test_pipeline = [
+    # Step 1: Load image
+    dict(type='LoadImageFromFile'),
+
+    # Step 2: Resize for evaluation
+    dict(type='Resize', scale=(1920, 1080), keep_ratio=True),
+
+    # Step 3: Load annotations (after resize)
+    # Ground-truth masks don’t need random transformations
+    dict(type='LoadAnnotations', reduce_zero_label=False),
+
+    # Step 4: Pack into model input
+    dict(type='PackSegInputs')
+]
+
+
+# ------------------------------------------------------------
+# Dataloaders
+# ------------------------------------------------------------
+# These control how data is read, batched, and fed into the model.
+# Each dataloader specifies its dataset, sampler, batch size,
+# number of workers, and preprocessing pipeline.
+
+# ---------------------------
+# Training Dataloader
+# ---------------------------
+train_dataloader = dict(
+    batch_size=8,                # number of samples per GPU
+    num_workers=4,               # number of subprocesses for loading data
+    persistent_workers=True,     # keep workers alive between epochs
+    sampler=dict(
+        type='InfiniteSampler',  # loops through dataset infinitely
+        shuffle=True             # shuffle data order each epoch
+    ),
+    dataset=dict(
+        type=dataset_type,       # use our custom dataset class
+        data_root=data_root,     # path to dataset root
+        img_suffix='.png',       # image file extension
+        seg_map_suffix='.png',   # mask file extension
+        data_prefix=dict(        # subfolder definitions
+            img_path='images/train',             # where to find training images
+            seg_map_path='annotations/train_mapped'  # where to find masks
+        ),
+        pipeline=train_pipeline,  # apply augmentation pipeline
+    ),
+)
+
+# ---------------------------
+# Validation Dataloader
+# ---------------------------
+val_dataloader = dict(
+    batch_size=1,                # evaluate one image per step
+    num_workers=4,
+    persistent_workers=False,    # workers can shut down between epochs
+    sampler=dict(
+        type='DefaultSampler',   # iterate dataset once per epoch
+        shuffle=False            # do not shuffle validation data
+    ),
+    dataset=dict(
+        type=dataset_type,
+        data_root=data_root,
+        img_suffix='.png',
+        seg_map_suffix='.png',
+        data_prefix=dict(
+            img_path='images/val',
+            seg_map_path='annotations/val_mapped'
+        ),
+        pipeline=test_pipeline,   # deterministic preprocessing
+    ),
+)
+
+# Use the same dataloader setup for testing
+test_dataloader = val_dataloader
+
+
+# ------------------------------------------------------------
+# Evaluators (Metrics)
+# ------------------------------------------------------------
+# Evaluators define which metrics to compute after each validation/test run.
+# 'mIoU' (Mean Intersection over Union) and 'mDice' (Mean Dice Coefficient)
+# are standard segmentation metrics for performance evaluation.
+
+val_evaluator = dict(
+    type='IoUMetric',
+    iou_metrics=['mIoU', 'mDice']
+)
+
+# Test evaluator mirrors validation setup
+test_evaluator = val_evaluator
+```
+
+
+
 
 
 
