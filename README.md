@@ -1,3 +1,50 @@
+## 🧠 Environment Setup
+
+This project has been tested with the following environment:
+
+| Component | Version | Check Command |
+|------------|----------|----------------|
+| **OS** | Ubuntu 22.04 LTS | `lsb_release -a` |
+| **Python** | 3.10.x | `python3 --version` |
+| **CUDA Compiler** | 11.5 | `nvcc --version` |
+| **NVIDIA Driver** | 580.95.05 | `nvidia-smi` |
+| **PyTorch** | 2.1.2 (CUDA enabled) | `python -c "import torch; print(torch.__version__, torch.cuda.is_available())"` |
+
+---
+
+### ⚙️ Quick Installation
+
+Copy and paste the following commands into your terminal:
+
+```bash
+# Clone repository
+git clone https://github.com/AAU-Underwater-Robot-Lab/mmsegmentation
+cd mmsegmentation
+
+# Create and activate virtual environment
+sudo apt-get update -y
+sudo apt-get install -y python3.10 python3.10-venv git
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install --upgrade pip wheel setuptools
+pip install torch==2.1.2 torchvision==0.16.2 numpy==1.26.4 openmim
+mim install mmengine
+mim install "mmcv==2.1.0"
+mim install mmdet
+pip install "numpy<2" ftfy regex tensorboard
+
+# Install this repository in editable mode
+pip install -v -e .
+```
+
+
+```bash
+# Verify setup
+python -c "import torch; print('Torch:', torch.__version__, '| CUDA:', torch.version.cuda, '| GPU:', torch.cuda.get_device_name(0))"
+```
+
 <div align="center">
   <img src="resources/mmseg-logo.png" width="600"/>
   <div>&nbsp;</div>
