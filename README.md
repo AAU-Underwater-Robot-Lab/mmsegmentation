@@ -395,6 +395,73 @@ val_evaluator = dict(
 test_evaluator = val_evaluator
 ```
 
+### Final step: training on custom data.
+
+Once you have registered your custom dataset (see `UnderWaterTurbidityAAU` in `mmseg/datasets/`), you can train any MMSegmentation model (like **DeepLabV3**) on it by creating a **custom configuration file**.
+
+This file defines:
+- The model architecture (e.g., DeepLabV3 with ResNet-50 backbone)
+- The dataset configuration (train/val/test)
+- Runtime and training schedule
+- Visualization and logging options
+
+---
+File path: `configs/underwater/deeplabv3_r50_Underwater_AAU.py`
+
+```python
+# ============================================================
+# Custom DeepLabV3 (ResNet-50) for Underwater Dataset
+# ============================================================
+
+# Base configurations
+_base_ = [
+    '../_base_/models/deeplabv3_r50-d8.py',          # Model definition
+    '../_base_/datasets/turbidity_underwater_dataset.py',  # Dataset + dataloaders
+    '../_base_/default_runtime.py',                  # Logging, hooks, runtime
+    '../_base_/schedules/schedule_160k.py'           # Training schedule (iterations)
+]
+
+# Optional: custom module imports (e.g., for transforms)
+custom_imports = dict(imports=['mmseg.datasets.transforms'], allow_failed_imports=False)
+
+# ------------------------------------------------------------
+# Model Override
+# ------------------------------------------------------------
+crop_size = (512, 512)
+data_preprocessor = dict(size=crop_size)
+
+model = dict(
+    # Preprocessing for input images
+    data_preprocessor=dict(
+        size=crop_size,          # Input image crop/resize size
+        size_divisor=None        # Optional padding divisor
+    ),
+    # Adjust number of output classes to match dataset
+    decode_head=dict(num_classes=10, ignore_index=255),
+    auxiliary_head=dict(num_classes=10, ignore_index=255)
+)
+
+# ------------------------------------------------------------
+# Visualization & Logging
+# ------------------------------------------------------------
+vis_backends = [dict(type='TensorboardVisBackend')]
+
+visualizer = dict(
+    type='SegLocalVisualizer',
+    vis_backends=vis_backends,
+    name='visualizer'
+)
+
+# Custom logging and checkpoint hooks
+default_hooks = dict(
+    logger=dict(type='LoggerHook', interval=50),
+    timer=dict(type='IterTimerHook'),
+    param_scheduler=dict(type='ParamSchedulerHook'),
+    checkpoint=dict(type='CheckpointHook', interval=16000, by_epoch=False),
+    sampler_seed=dict(type='DistSamplerSeedHook'),
+)
+```
+
 
 
 
