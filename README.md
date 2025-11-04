@@ -27,23 +27,43 @@ sudo apt-get install -y python3.10 python3.10-venv git
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install dependencies
-pip install --upgrade pip wheel setuptools
-pip install torch==2.1.2 torchvision==0.16.2 numpy==1.26.4 openmim
+# Dont change orders of dependencies. 
+pip install torch==2.1.2
+pip install torchvision==0.16.2
+pip install numpy==1.26.4
+pip install openmim
 mim install mmengine
 mim install "mmcv==2.1.0"
 mim install mmdet
-pip install "numpy<2" ftfy regex tensorboard
-
+pip install "numpy<2"
 # Install this repository in editable mode
 pip install -v -e .
+pip install ftfy
+pip install regex
+pip install tensorboard
+
 ```
 
+### Verify Setup
 
+Varify that torch can access cuda-compiler and GPU.
 ```bash
 # Verify setup
 python -c "import torch; print('Torch:', torch.__version__, '| CUDA:', torch.version.cuda, '| GPU:', torch.cuda.get_device_name(0))"
 ```
+Expected outcome: Torch: 2.1.2+cu121 | CUDA: 12.1 | GPU: Tesla T4
+
+Verify that you can download pre-trained data and make a inference using MMEngine.
+
+```bash
+mim download mmsegmentation --config pspnet_r50-d8_4xb2-40k_cityscapes-512x1024 --dest .
+python demo/image_demo.py demo/demo.png configs/pspnet/pspnet_r50-d8_4xb2-40k_cityscapes-512x1024.py pspnet_r50-d8_512x1024_40k_cityscapes_20200605_003338-2966598c.pth --device cuda:0 --out-file result.jpg
+```
+Check on project directory. result.jpg is generated
+
+
+
+
 
 <div align="center">
   <img src="resources/mmseg-logo.png" width="600"/>
