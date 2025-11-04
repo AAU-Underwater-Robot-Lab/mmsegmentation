@@ -1,4 +1,4 @@
-## 🧠 Environment Setup
+## Environment Setup
 
 This project has been tested with the following environment:
 
