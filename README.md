@@ -61,6 +61,167 @@ python demo/image_demo.py demo/demo.png configs/pspnet/pspnet_r50-d8_4xb2-40k_ci
 ```
 Check on project directory. result.jpg is generated
 
+# Training on Custom Dataset
+
+## Setting up Custom Data
+
+### Dataset Structure
+
+MMSegmentation expects datasets to follow a **COCO-like** or **custom folder-based structure** where each split (`train`, `val`, `test`) has its own image and annotation subdirectories.
+
+A typical structure looks like this:
+
+```
+data/
+├── my_dataset/
+│ ├── train/
+│ │ ├── images/
+│ │ │ ├── 0001.png
+│ │ │ ├── 0002.png
+│ │ │ └── ...
+│ │ └── masks/
+│ │ ├── 0001.png
+│ │ ├── 0002.png
+│ │ └── ...
+│ ├── val/
+│ │ ├── images/
+│ │ └── masks/
+│ └── test/
+│ ├── images/
+│ └── masks/
+```
+
+Each **mask image** should:
+- Have the same filename as its corresponding RGB image.
+- Use **grayscale pixel values** where each integer represents a class label (e.g., `0 = background`, `1 = object1`, `2 = object2`, ...).
+- Be stored in `.png` format (recommended).
+
+### Add Custom Dataset Metadata
+
+To make MMSegmentation recognize a **new dataset**, you must register it by creating a small Python class that defines its **metadata** — such as class names, color palette, and file suffixes.
+
+This file tells MMSegmentation **how to interpret your dataset’s images and masks**.
+
+---
+
+Place this file under: mmsegmentation/mmseg/datasets/
+
+Example file python file `underwater_turbidity_aau.py`
+
+```python
+
+# ============================================================
+# Custom Dataset Definition for MMSegmentation
+# ============================================================
+# This file defines how MMSegmentation should load, interpret,
+# and visualize your dataset (e.g., underwater segmentation).
+#
+# Location:
+#   mmsegmentation/mmseg/datasets/underwater_turbidity_aau.py
+# ============================================================
+
+from mmseg.registry import DATASETS
+from mmseg.datasets import BaseSegDataset
+
+
+@DATASETS.register_module()
+class UnderwaterTurbidityAAU(BaseSegDataset):
+    """Custom underwater dataset using grayscale masks.
+    
+    Each pixel in the mask corresponds to a class ID (0–9).
+    Classes and colors are defined in the METAINFO dictionary.
+    """
+
+    # ------------------------------------------------------------
+    # METAINFO: dataset metadata (class names, colors, etc.)
+    # ------------------------------------------------------------
+    METAINFO = dict(
+        # Define the semantic classes your dataset contains
+        classes=(
+            'Pool_background',
+            'Black_Pipe',
+            'Aluminum_Pipe',
+            'Wooden_piece',
+            'Granite',
+            'Acomar',
+            'Can',
+            'Benchy',
+            'Intruder',
+            'BlueROV2'
+        ),
+
+        # Color palette used for visualization (RGB format)
+        palette=[
+            [160, 196, 189],  # Pool_background
+            [141, 195, 141],  # Black_Pipe
+            [199, 187, 116],  # Aluminum_Pipe
+            [164,  92, 174],  # Wooden_piece
+            [197, 197, 197],  # Granite
+            [ 58, 105, 176],  # Acomar
+            [179,  63,  62],  # Can
+            [202, 160, 133],  # Benchy
+            [207, 106, 189],  # Intruder
+            [150, 151, 170],  # BlueROV2
+        ],
+
+        # (OPTIONAL) You can also include additional metadata keys here:
+        #
+        # 'dataset_name': 'UnderWaterAAU',
+        # 'description': 'Annotated underwater scenes for segmentation',
+        # 'label_map': {0: 'background', 1: 'pipe', ...},  # if you remap labels
+        # 'ignore_index': 255,  # value to ignore during training
+    )
+
+    # ------------------------------------------------------------
+    # Dataset Initialization
+    # ------------------------------------------------------------
+    def __init__(self,
+                 img_suffix='.png',        # File extension for input images
+                 seg_map_suffix='.png',    # File extension for segmentation masks
+                 reduce_zero_label=False,  # Ignore label 0 (background) if True
+                 **kwargs):
+        """Initialize the dataset and pass extra arguments to BaseSegDataset.
+
+        Optional kwargs examples:
+          - data_root: root directory (e.g. 'data/underwater_3/')
+          - pipeline: augmentation/transformation pipeline
+          - ann_file: path to annotation list (if using COCO format)
+        """
+
+        # Initialize parent class (BaseSegDataset handles image/mask pairing)
+        super().__init__(
+            img_suffix=img_suffix,
+            seg_map_suffix=seg_map_suffix,
+            reduce_zero_label=reduce_zero_label,
+            **kwargs)
+```
+
+Next open `mmsegmentation/mmseg/datasets/__init__.py` and add the created Class in **__all__** list.
+
+```python
+...
+__all__ = [
+    'BaseSegDataset', 'BioMedical3DRandomCrop', 'BioMedical3DRandomFlip',
+    'CityscapesDataset', 'PascalVOCDataset', 'ADE20KDataset',
+    'PascalContextDataset', 'PascalContextDataset59', 'ChaseDB1Dataset',
+    'DRIVEDataset', 'HRFDataset', 'STAREDataset', 'DarkZurichDataset',
+    'NightDrivingDataset', 'COCOStuffDataset', 'LoveDADataset',
+    'MultiImageMixDataset', 'iSAIDDataset', 'ISPRSDataset', 'PotsdamDataset',
+    'LoadAnnotations', 'RandomCrop', 'SegRescale', 'PhotoMetricDistortion',
+    'RandomRotate', 'AdjustGamma', 'CLAHE', 'Rerange', 'RGB2Gray',
+    'RandomCutOut', 'RandomMosaic', 'PackSegInputs', 'ResizeToMultiple',
+    'LoadImageFromNDArray', 'LoadBiomedicalImageFromFile',
+    'LoadBiomedicalAnnotation', 'LoadBiomedicalData', 'GenerateEdge',
+    'DecathlonDataset', 'LIPDataset', 'ResizeShortestEdge',
+    'BioMedicalGaussianNoise', 'BioMedicalGaussianBlur',
+    'BioMedicalRandomGamma', 'BioMedical3DPad', 'RandomRotFlip',
+    'SynapseDataset', 'REFUGEDataset', 'MapillaryDataset_v1',
+    'MapillaryDataset_v2', 'Albu', 'LEVIRCDDataset',
+    'LoadMultipleRSImageFromFile', 'LoadSingleRSImageFromFile',
+    'ConcatCDInput', 'BaseCDDataset', 'DSDLSegDataset', 'BDD100KDataset',
+    'NYUDataset', 'HSIDrive20Dataset', 'UnderWaterTurbidityAAU'
+]
+```
 
 
 
