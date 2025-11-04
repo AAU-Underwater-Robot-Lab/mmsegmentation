@@ -256,7 +256,7 @@ Example: Underwater Dataset Configuration
 # ------------------------------------------------------------
 # 'dataset_type' must match the name of your registered dataset class.
 # This links to the dataset defined in mmseg/datasets/underwater_aau.py
-dataset_type = 'UnderWaterAAU'
+dataset_type = 'UnderwaterTurbidityAAU'
 
 # Root directory where images and annotations are stored.
 data_root = 'data/underwater_3/'
