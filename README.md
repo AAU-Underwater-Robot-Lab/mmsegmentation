@@ -469,13 +469,33 @@ default_hooks = dict(
 ```python
 cd mmsegmentation
 source .venv/bin/activate
-
+# optional run with tmux so it will run in the background when remote shell closed
 # Select which GPU to use (e.g., GPU 0)
 CUDA_VISIBLE_DEVICES=0 python tools/train.py configs/underwater/custom_deeplabv3_r50.py
 ```
 
+# Visualize training with TensorBoard.
 
+## 📡 SSH Port Forwarding and TensorBoard Access
 
+When training models remotely (e.g., on a Jetson, HPC node, or lab server), you can securely view **TensorBoard** in your **local browser** using SSH port forwarding.
+
+### 1️⃣ SSH Port Forwarding Basics
+
+SSH port forwarding allows you to create a secure tunnel from your **local machine** to a **remote port** (e.g., TensorBoard’s default port `6006`).
+
+```bash
+ssh -L 6006:localhost:6006 <username>@<remote_server_ip>
+```
+
+Go to project folder, source and execute tensorboard.
+
+```bash
+cd ~/mmsegmentation
+source .venv/bin/activate
+tensorboard --logdir work_dirs --bind_all
+```
+Open `localhost:6006` in local machine to access TensorBoard and visualize the training.
 
 
 <div align="center">
