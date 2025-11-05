@@ -35,6 +35,9 @@ pip install openmim
 mim install mmengine
 mim install "mmcv==2.1.0"
 mim install mmdet
+pip install albumentations
+# ensure the last thing before pip install -v -e . is nump<2.
+# Several packages will install lates version of numpy, but for some reason mmengine expect a numpy version 1.X
 pip install "numpy<2"
 # Install this repository in editable mode
 pip install -v -e .
