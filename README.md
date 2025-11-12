@@ -500,6 +500,239 @@ tensorboard --logdir work_dirs --bind_all
 ```
 Open `localhost:6006` in local machine to access TensorBoard and visualize the training.
 
+# How to make inference from a trained data.
+
+
+Make an inference from your testing data. This testing data need to be define in the dataloader of the model you are using. Snippet of this code.
+
+```python
+...
+test_dataloader = dict(
+    batch_size=1,
+    num_workers=1,
+    persistent_workers=False,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=dict(
+        type=dataset_type,
+        data_root=data_root,
+        img_suffix='.jpg',
+        seg_map_suffix='.png',  # no annotations needed
+        data_prefix=dict(
+            img_path='test/' + turbidity_level + '/image',
+            seg_map_path='test/' + turbidity_level + '/mask'
+        ),
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(type='Resize', scale=(1280, 720), keep_ratio=True),
+            dict(type='LoadAnnotations', reduce_zero_label=False),
+            dict(type='PackSegInputs')
+        ],
+    ),
+)
+
+...
+test_evaluator = dict(
+    type='IoUMetric',
+    iou_metrics=['mIoU', 'mDice'],
+    output_dir='work_dirs/vis_preds',
+    format_only=False
+)
+```
+Make an inference. First parameter `configs/turbidity_training/t1_mask2former_swin-s.py` makes a reference to the config file you used to trani the model. While `work_dirs/t1_mask2former_swin/s/iter_19000.pth` is the weightpoint generated while training.
+
+Use the weightpoints that has converfeg and not overfit the model (check that the model loss funcion is decreasing while the validation metrics are not being degraded).
+
+```bash
+CUDA_VISIBLE_DEVICES=2 python tools/test.py configs/turbidity_training/t1_mask2former_swin-s.py work_dirs/t1_mask2former_swin-s/iter_19000.pth --show-dir work_dirs/vis_preds
+```
+
+The previous command generate a file in `~/mmsegmentation/work_dirs/vis_preds`. The prediction generates a grayscale masks (hard to visualize). They can easily be visualize in RGB with the GroungTruth and prediction by using Tensorboard (explianed in this same document).
+
+To mIoU, preccision, recall and dice you can run the next script.
+
+```python
+
+import os
+import cv2
+import numpy as np
+import csv
+from sklearn.metrics import confusion_matrix
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+# Ground truth (GT) and prediction directories
+gt_dir = '/home/ubuntu/data/test/1/mask'       # path to GT grayscale masks
+pred_dir = 'work_dirs/vis_preds'               # path to predicted grayscale masks
+
+# Class definitions (update if needed)
+classes = [
+    'Pool_background', 'Black_Pipe', 'Aluminum_Pipe', 'Wooden_piece', 'Granite',
+    'Acomar', 'Can', 'Benchy', 'Intruder', 'BlueROV2'
+]
+num_classes = len(classes)
+
+# Optional: output CSV for reporting
+csv_out = 'work_dirs/metrics_summary.csv'
+
+# ============================================================
+# LOAD DATA
+# ============================================================
+
+gt_files = sorted([f for f in os.listdir(gt_dir) if f.endswith(('.png', '.jpg', '.jpeg'))])
+pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(('.png', '.jpg', '.jpeg'))])
+
+all_gt, all_pred = [], []
+
+for g, p in zip(gt_files, pred_files):
+    gt = cv2.imread(os.path.join(gt_dir, g), cv2.IMREAD_GRAYSCALE)
+    pr = cv2.imread(os.path.join(pred_dir, p), cv2.IMREAD_GRAYSCALE)
+    if gt is None or pr is None:
+        print(f"[Warning] Skipped {g} or {p} (not readable).")
+        continue
+    all_gt.append(gt.flatten())
+    all_pred.append(pr.flatten())
+
+all_gt = np.concatenate(all_gt)
+all_pred = np.concatenate(all_pred)
+
+# ============================================================
+# METRIC COMPUTATION
+# ============================================================
+
+cm = confusion_matrix(all_gt, all_pred, labels=range(num_classes))
+TP = np.diag(cm)
+FP = cm.sum(axis=0) - TP
+FN = cm.sum(axis=1) - TP
+
+# Avoid division by zero
+precision = np.divide(TP, TP + FP, out=np.zeros_like(TP, dtype=float), where=(TP + FP) != 0)
+recall    = np.divide(TP, TP + FN, out=np.zeros_like(TP, dtype=float), where=(TP + FN) != 0)
+f1        = np.divide(2 * precision * recall, precision + recall, out=np.zeros_like(TP, dtype=float), where=(precision + recall) != 0)
+iou       = np.divide(TP, TP + FP + FN, out=np.zeros_like(TP, dtype=float), where=(TP + FP + FN) != 0)
+
+# Overall (macro) metrics
+overall_precision = precision.mean()
+overall_recall    = recall.mean()
+overall_f1        = f1.mean()
+overall_iou       = iou.mean()
+
+# ============================================================
+# PRINT RESULTS
+# ============================================================
+
+print("=" * 72)
+print(f"{'Class':<20} {'Prec':>8} {'Rec':>8} {'F1':>8} {'IoU':>8}")
+print("-" * 72)
+for i, name in enumerate(classes):
+    print(f"{name:<20} {precision[i]:8.3f} {recall[i]:8.3f} {f1[i]:8.3f} {iou[i]:8.3f}")
+print("-" * 72)
+print(f"{'Mean (m)':<20} {overall_precision:8.3f} {overall_recall:8.3f} {overall_f1:8.3f} {overall_iou:8.3f}")
+print("=" * 72)
+
+# ============================================================
+# OPTIONAL: SAVE TO CSV
+# ============================================================
+
+os.makedirs(os.path.dirname(csv_out), exist_ok=True)
+with open(csv_out, 'w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(['Class', 'Precision', 'Recall', 'F1', 'IoU'])
+    for i, name in enumerate(classes):
+        writer.writerow([name, precision[i], recall[i], f1[i], iou[i]])
+    writer.writerow(['Mean', overall_precision, overall_recall, overall_f1, overall_iou])
+
+print(f"\n✅ Metrics saved to: {csv_out}")
+```
+
+This will print in the screen all the metrics of all the classes and the average of all the classes.
+
+To obtain a confusion matrix of prediction run next script!
+
+```python
+import os
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+gt_dir = '/home/ubuntu/data/test/1/mask'        # Ground truth grayscale masks
+pred_dir = 'work_dirs/vis_preds'                # Predicted grayscale masks
+save_path = 'work_dirs/confusion_matrix.png'    # Output image
+
+classes = [
+    'Pool_background', 'Black_Pipe', 'Aluminum_Pipe', 'Wooden_piece', 'Granite',
+    'Acomar', 'Can', 'Benchy', 'Intruder', 'BlueROV2'
+]
+num_classes = len(classes)
+
+# ============================================================
+# LOAD MASKS
+# ============================================================
+gt_files = sorted([f for f in os.listdir(gt_dir) if f.endswith(('.png', '.jpg', '.jpeg'))])
+pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(('.png', '.jpg', '.jpeg'))])
+
+all_gt, all_pred = [], []
+
+for g, p in zip(gt_files, pred_files):
+    gt = cv2.imread(os.path.join(gt_dir, g), cv2.IMREAD_GRAYSCALE)
+    pr = cv2.imread(os.path.join(pred_dir, p), cv2.IMREAD_GRAYSCALE)
+    if gt is None or pr is None:
+        print(f"[Warning] Skipped {g} or {p} (not readable).")
+        continue
+    all_gt.append(gt.flatten())
+    all_pred.append(pr.flatten())
+
+all_gt = np.concatenate(all_gt)
+all_pred = np.concatenate(all_pred)
+
+# ============================================================
+# COMPUTE CONFUSION MATRIX
+# ============================================================
+cm = confusion_matrix(all_gt, all_pred, labels=range(num_classes))
+cm_norm = cm.astype('float') / (cm.sum(axis=1, keepdims=True) + 1e-8)  # normalize rows
+
+# ============================================================
+# DISPLAY CONFUSION MATRIX
+# ============================================================
+plt.figure(figsize=(10, 8))
+sns.heatmap(
+    cm_norm,
+    annot=True,
+    fmt=".2f",
+    cmap='Blues',
+    xticklabels=classes,
+    yticklabels=classes,
+    cbar_kws={'label': 'Normalized Frequency'}
+)
+
+plt.title("Normalized Confusion Matrix (Prediction vs. Ground Truth)")
+plt.xlabel("Predicted Class")
+plt.ylabel("True Class")
+plt.xticks(rotation=45, ha='right')
+plt.yticks(rotation=0)
+plt.tight_layout()
+plt.savefig(save_path, dpi=300)
+plt.show()
+
+# ============================================================
+# PRINT SUMMARY
+# ============================================================
+print("\n✅ Confusion matrix saved as:", save_path)
+print("\nRaw counts (first few rows):")
+print(cm[:min(5, num_classes), :min(5, num_classes)])
+
+```
+
+Tachannnnnn, you got it! now go and write the damm paper!
+
+
+
 
 <div align="center">
   <img src="resources/mmseg-logo.png" width="600"/>
